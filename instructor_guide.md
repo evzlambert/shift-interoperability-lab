@@ -99,9 +99,19 @@ The app is central to this phase. Students spend ~30 min submitting data, then ~
 - The incomplete Dashboard pivot (some groups submitted more than others) is itself a discussion point about uneven adoption of interoperability standards
 
 ### Phase 3 — Standards Workshop (45 min)
-- After the standards committee discussion (Part A), direct students to the **FHIR Explorer** tab
+**Part A — Standards Working Group Round Table (20 min):**
+- The entire class works together as one group — no one is excluded or waiting
+- Have students push tables together or face the front so it feels like a working session, not a lecture
+- One student (or you) records the group's agreed answers on the whiteboard as they go through the 5 questions
+- Let disagreement happen — the point is that consensus is hard. Don't resolve debates too quickly
+- Watch for moments where students from different backgrounds (clinical vs. admin vs. finance) genuinely disagree — name it: "This is exactly what happens in real standards bodies"
+- The three closing reflection questions surface the hardest lesson: governance and politics, not just technology
+
+**Part B — FHIR Explorer and real standards (25 min):**
+- After the round table, direct students to the **FHIR Explorer** tab
 - Walk through one Patient resource on the projector: show the `identifier` array, the `link` field on the baby record, and the side-by-side HIE vs FHIR view
 - Switch to an Observation and point out the LOINC code — contrast with how test names were handled in students' raw CSVs
+- Bridge back to their round table answers: "You said use a national ID — that's exactly what INS is. You said pick one date format — that's ISO 8601."
 
 ### Phase 4 — Debrief (45 min)
 - Leave the Dashboard projected — the incomplete submission picture is a concrete artifact of interoperability failure

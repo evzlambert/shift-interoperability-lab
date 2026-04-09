@@ -354,30 +354,52 @@ HAVING COUNT(*) > 1;
 
 **Objective:** Groups collaborate to design an interoperability solution, then learn about real standards.
 
-**Part A - Design Your Own Standard (20 minutes):**
+**Part A - Standards Working Group Round Table (20 minutes):**
 
-1. Form a "standards committee" with one representative from each group. The remaining group members stay at their seats and will be asked to apply whatever the committee decides.
+The entire class now forms a **Standards Working Group**. You are no longer separate groups competing to submit data — you are colleagues who have all experienced the same broken system and are now sitting around the same table trying to fix it.
 
-2. The committee works through these five questions — use the query results from Phase 2 as your evidence:
+Your task: draft five decisions that, if every healthcare organization in your region agreed to them, would prevent most of the problems you just encountered.
 
-   **Question 1 — Patient identity**
-   Look at Query 1 results: Marie Dupont appeared multiple times with slight variations. What single piece of information, if every system were required to record it, would guarantee you could match the same patient across all 8 systems? What would you call this field? What format would it use (numbers only? letters and numbers? how many characters)? What happens to patients who don't have this identifier yet — like a newborn?
+Use your Interoperability Challenge Logs and the shared query results as your evidence. Work through each question as a group. One person should record the group's agreed answers on the whiteboard or a shared document — these are your **draft interoperability rules**.
 
-   **Question 2 — Dates and times**
-   Your data had at least four different date formats (DD/MM/YYYY, DD-MMM-YY, YYYYMMDD, YYYY-MM-DD). Pick one. Write it down exactly. Now — does your chosen format include time? What timezone? What happens to records that were created before your standard existed?
+---
 
-   **Question 3 — Minimum required fields**
-   If every healthcare setting had to submit exactly the same fields to the HIE — no more, no less — what would those fields be? Think about the smallest set of information that would allow you to: identify the patient, understand what happened, know when and where it happened, and link a mother's record to her baby's record.
+**Working Group Question 1 — Patient identity**
+Look at your Query 1 results: Marie Dupont appeared multiple times with slight name variations across different groups' data. What single piece of information, if every system were required to record it, would guarantee you could match the same patient across all 8 systems?
+- What would you call this field?
+- What format would it use (numbers only? letters and numbers? how many characters)?
+- What happens to patients who don't have this identifier yet — like a newborn?
+- Who is responsible for assigning it — the hospital? the government? the patient?
 
-   **Question 4 — Codes for diagnoses and medications**
-   Group 4 used CIM-10 codes. Group 7 used ATC codes. Group 2 used NABM codes. Group 5 used free text. Could you pick one coding system for all settings? What would you force a midwife practice — which currently uses no codes — to do? Who pays for that?
+**Working Group Question 2 — Dates and times**
+Your data had at least four different date formats (DD/MM/YYYY, DD-MMM-YY, YYYYMMDD, YYYY-MM-DD). Pick one format for the entire region. Write it down exactly.
+- Does your chosen format include time of day? Why or why not?
+- What timezone applies — local time, or a universal standard?
+- What should happen to historical records that were created before your standard existed?
 
-   **Question 5 — File format for exchange**
-   When your system needs to send data to another system, what format should the file be in? CSV? Something else? What are the rules about column names, delimiter characters, and encoding (especially for accented French characters)?
+**Working Group Question 3 — Minimum required fields**
+If every healthcare setting — hospital, clinic, midwife practice, pharmacy — had to submit exactly the same minimum fields to the HIE, what would they be?
+- Think about what you'd need to: identify the patient, understand what happened, know when and where it happened, and link a mother's record to her baby's.
+- Are there fields your group submitted that others didn't? Should those be required?
+- What is the cost of requiring a small midwife practice to collect fields they don't currently record?
 
-3. Once the committee has agreed on answers, remaining group members spend 5 minutes trying to apply the committee's rules to their own dataset. Can they actually do it?
+**Working Group Question 4 — Codes for diagnoses and medications**
+Group 4 used CIM-10 codes. Group 7 used ATC codes. Group 2 used NABM codes. Group 5 used free text. You cannot query across all of these reliably.
+- Can you agree on one coding system per data type (diagnoses, medications, lab tests)?
+- What would you require a midwife practice — which currently uses no codes at all — to do?
+- Who pays for the training and system upgrades needed to implement your decision?
 
-4. Full class discussion: What was hardest to agree on? What did a group member discover when they tried to apply the committee's decision that the committee hadn't anticipated?
+**Working Group Question 5 — Exchange format and file rules**
+When one system needs to send data to the HIE, what format should the file be in? You started with CSV files — is that sufficient?
+- What rules would you set about column names, delimiter characters, and encoding (especially for accented French characters like é, è, à)?
+- Should a system be allowed to send data in any format it wants, as long as the HIE translates it? Or should the format be standardized at the source?
+
+---
+
+After working through the five questions, take 3 minutes to reflect as a group:
+- Which question was hardest to reach consensus on, and why?
+- Was there any question where different professional backgrounds in the room led to genuinely different answers (clinical vs. administrative vs. financial)?
+- If you had to implement just one of your five decisions tomorrow, which would have the highest impact?
 
 **Part B - Real-World Standards Introduction (25 minutes):**
 Instructor-led discussion mapping the students' experience to real interoperability frameworks:
