@@ -4,6 +4,8 @@ import threading
 import pandas as pd
 import json
 import os
+import io
+import re
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -636,7 +638,7 @@ with st.sidebar:
     )
 
 # Main content - tabs
-tab_insert, tab_query, tab_dashboard, tab_fhir = st.tabs(["Insert Data", "Query Data", "Dashboard", "FHIR Explorer"])
+tab_insert, tab_query, tab_dashboard, tab_fhir, tab_export = st.tabs(["Insert Data", "Query Data", "Dashboard", "FHIR Explorer", "Export (Assessment)"])
 
 # ---- Tab 1: Insert Data ----
 with tab_insert:
@@ -948,3 +950,308 @@ standardize so that every system does it the same way, once, rather than every e
 negotiating their own mappings.
 """
         )
+
+# ---- Tab 5: Export (Assessment) ----
+with tab_export:
+    st.subheader("Export & Assessment")
+    st.markdown(
+        "Use this tab to review each group's submissions and download data for grading. "
+        "The scorecard flags common errors automatically. Download the full Excel workbook "
+        "at the end of class before students leave — data does not persist after the app restarts."
+    )
+    st.info("**Instructor reminder:** Download the Excel file before ending class. The database resets when the app restarts.")
+
+    ALL_TABLES = ["patients", "encounters", "vitals", "lab_results", "medications", "imaging", "claims"]
+
+    # ------------------------------------------------------------------
+    # Section 1: Class-wide scorecard
+    # ------------------------------------------------------------------
+    st.divider()
+    st.markdown("### Class Scorecard — Submissions by Group")
+
+    def build_scorecard():
+        conn = get_connection()
+        rows = []
+        for grp in GROUPS:
+            required = GROUP_TABLES.get(grp, [])
+            row = {"Group": grp}
+            missing = []
+            for table in ALL_TABLES:
+                try:
+                    count = conn.execute(
+                        f"SELECT COUNT(*) FROM {table} WHERE source_system = ?", (grp,)
+                    ).fetchone()[0]
+                except Exception:
+                    count = 0
+                row[table] = count
+                if table in required and count == 0:
+                    missing.append(table)
+            row["Status"] = "✓ Complete" if not missing else f"✗ Missing: {', '.join(missing)}"
+            rows.append(row)
+        conn.close()
+        return pd.DataFrame(rows)
+
+    scorecard_df = build_scorecard()
+    st.dataframe(scorecard_df, hide_index=True, use_container_width=True)
+
+    if st.button("Refresh Scorecard"):
+        st.rerun()
+
+    # ------------------------------------------------------------------
+    # Section 2: Per-group detailed review with automated feedback
+    # ------------------------------------------------------------------
+    st.divider()
+    st.markdown("### Per-Group Detailed Review")
+    st.markdown("Select a group to see their submitted data and automated assessment feedback.")
+
+    selected_group_export = st.selectbox(
+        "Select group to review:",
+        ["-- Select a group --"] + GROUPS,
+        key="export_group_select"
+    )
+
+    if selected_group_export and selected_group_export != "-- Select a group --":
+        conn = get_connection()
+        required_tables = GROUP_TABLES.get(selected_group_export, [])
+        st.markdown(f"**Required tables for this group:** {', '.join(f'`{t}`' for t in required_tables)}")
+        st.markdown("---")
+
+        for table in required_tables:
+            try:
+                df = pd.read_sql_query(
+                    f"SELECT * FROM {table} WHERE source_system = ?",
+                    conn, params=(selected_group_export,)
+                )
+            except Exception:
+                df = pd.DataFrame()
+
+            count = len(df)
+            status_icon = "✓" if count > 0 else "✗"
+            with st.expander(f"{status_icon} `{table}` — {count} record(s) submitted", expanded=(count == 0)):
+                if df.empty:
+                    st.error("No records submitted for this table.")
+                else:
+                    st.dataframe(df, hide_index=True, use_container_width=True)
+
+                    # --- Automated assessment checks ---
+                    feedback = []
+
+                    if table == "patients":
+                        # Date format check
+                        if "date_of_birth" in df.columns:
+                            bad = df[~df["date_of_birth"].fillna("").str.match(r"^\d{4}-\d{2}-\d{2}$")]
+                            if not bad.empty:
+                                feedback.append(("warning", f"{len(bad)} patient(s) have `date_of_birth` not in YYYY-MM-DD format. Dates must be converted from DD/MM/YYYY."))
+                        # source_patient_id documented?
+                        if "source_patient_id" in df.columns:
+                            missing_src = df["source_patient_id"].isna().sum()
+                            if missing_src == count:
+                                feedback.append(("info", "No `source_patient_id` values recorded. Students are encouraged to document the original system ID for traceability."))
+                        # Mother-baby linkage for Groups 6 & 7
+                        if selected_group_export in ["Group 6 - Hospital Maternity", "Group 7 - PMI Postnatal"]:
+                            if "related_patient_id" in df.columns:
+                                linked = df["related_patient_id"].notna().sum()
+                                if linked == 0:
+                                    feedback.append(("warning", "No mother-baby linkage found (`related_patient_id` is empty). The baby patient should be linked to the mother using this field."))
+                                else:
+                                    feedback.append(("success", f"{linked} patient record(s) have mother-baby linkage (`related_patient_id` populated). ✓"))
+                            babies = df[df["date_of_birth"].fillna("") == "2026-01-28"] if "date_of_birth" in df.columns else pd.DataFrame()
+                            if babies.empty:
+                                feedback.append(("warning", "Baby Louise (DOB 2026-01-28) does not appear as a separate patient record. Groups 6 and 7 should submit both mother and baby as separate patients."))
+                            else:
+                                feedback.append(("success", "Baby Louise submitted as a separate patient record. ✓"))
+                        # Check for confusable patient DUPOND (Group 4)
+                        if selected_group_export == "Group 4 - Obstetric Clinic":
+                            if "last_name" in df.columns:
+                                dupond = df[df["last_name"].str.upper() == "DUPOND"]
+                                if not dupond.empty:
+                                    feedback.append(("error", "Patient 'DUPOND' was submitted — this is the confusable second patient, NOT Marie Dupont. This record should have been excluded."))
+                                else:
+                                    feedback.append(("success", "Confusable patient DUPOND was correctly excluded. ✓"))
+
+                    if table == "encounters":
+                        if "encounter_date" in df.columns:
+                            bad = df[~df["encounter_date"].fillna("").str.match(r"^\d{4}-\d{2}-\d{2}$")]
+                            if not bad.empty:
+                                feedback.append(("warning", f"{len(bad)} encounter(s) have `encounter_date` not in YYYY-MM-DD format. DICOM dates (YYYYMMDD) and French dates (DD/MM/YYYY) must be converted."))
+                        if "encounter_type" in df.columns:
+                            valid_types = {"outpatient", "inpatient", "emergency", "home_visit"}
+                            invalid = df[~df["encounter_type"].str.lower().isin(valid_types)]
+                            if not invalid.empty:
+                                feedback.append(("warning", f"{len(invalid)} encounter(s) use an unrecognised `encounter_type`. Valid values: outpatient, inpatient, emergency, home_visit."))
+
+                    if table == "vitals":
+                        if "systolic_bp" in df.columns:
+                            no_bp = df["systolic_bp"].isna().sum()
+                            if no_bp == count:
+                                feedback.append(("warning", "No `systolic_bp` values submitted. Blood pressure data should be converted from French shorthand (e.g., '11/7' → systolic=110, diastolic=70)."))
+                        if "weight_kg" in df.columns and selected_group_export == "Group 7 - PMI Postnatal":
+                            high_weight = df[df["weight_kg"].fillna(0) > 100]
+                            if not high_weight.empty:
+                                feedback.append(("error", f"{len(high_weight)} weight value(s) appear to be in grams, not kg (value > 100). Baby weight must be converted: divide grams by 1000 (e.g., 3100g → 3.1 kg)."))
+                            else:
+                                feedback.append(("success", "Weight values appear to be in kg (all ≤ 100). Unit conversion from grams looks correct. ✓"))
+
+                    if table == "lab_results":
+                        if selected_group_export == "Group 2 - Laboratory":
+                            # Check for corrected result flag
+                            if "is_corrected" in df.columns:
+                                corrected = (df["is_corrected"] == 1).sum()
+                                if corrected == 0:
+                                    feedback.append(("warning", "No corrected lab results (`is_corrected = 1`). Group 2 should have flagged the corrected glucose value."))
+                                else:
+                                    feedback.append(("success", f"{corrected} corrected result(s) properly flagged with `is_corrected = 1`. ✓"))
+                            # Check for truncated test names
+                            if "test_name" in df.columns:
+                                truncated = df[df["test_name"].fillna("").str.endswith(("(Ir", "(I", "Scre", "Anti"))]
+                                if not truncated.empty:
+                                    feedback.append(("error", f"{len(truncated)} test name(s) appear truncated. The anti-Kell antibody test name must be written in full — truncation is a patient safety issue."))
+                                # Check units consistency
+                                if "unit" in df.columns:
+                                    units = df["unit"].dropna().unique()
+                                    if "g/L" in units and "mmol/L" in units:
+                                        feedback.append(("warning", "Both g/L and mmol/L units found in lab results. All glucose values should be converted to a single unit (mmol/L preferred)."))
+                                    elif "mmol/L" in units:
+                                        feedback.append(("success", "Units appear consistent (mmol/L). ✓"))
+
+                    if table == "medications":
+                        if selected_group_export in ["Group 4 - Obstetric Clinic", "Group 6 - Hospital Maternity"]:
+                            if "notes" in df.columns:
+                                methyldopa = df[df["medication_name"].str.upper().str.contains("METHYLDOPA", na=False)]
+                                if not methyldopa.empty:
+                                    noted = methyldopa["notes"].notna().sum()
+                                    if noted == 0:
+                                        feedback.append(("warning", "Methyldopa submitted but `notes` field is empty. The dose discrepancy (500mg/day vs 750mg/day) should be documented in notes."))
+                                    else:
+                                        feedback.append(("success", "Methyldopa notes field populated — dose discrepancy documented. ✓"))
+
+                    if table == "claims":
+                        if selected_group_export == "Group 8 - Insurance Payer":
+                            # Check for duplicate flagging
+                            if "claim_status" in df.columns:
+                                dupes = df[df["claim_status"].fillna("").str.lower() == "duplicate"]
+                                if dupes.empty:
+                                    feedback.append(("warning", "No claims flagged as 'Duplicate'. Group 8 should have identified and flagged the duplicate claim."))
+                                else:
+                                    feedback.append(("success", f"{len(dupes)} claim(s) correctly flagged as Duplicate. ✓"))
+                            # Check amount formatting
+                            if "total_amount" in df.columns:
+                                non_numeric = df[df["total_amount"].isna() & df["service_description"].notna()]
+                                if not non_numeric.empty:
+                                    feedback.append(("info", "Some claims have no `total_amount`. Verify that euro amounts were converted from comma decimal format (e.g., '124,50' → 124.50)."))
+                            if "reimbursement_rate" in df.columns:
+                                text_rates = df[df["reimbursement_rate"] > 1.0]
+                                if not text_rates.empty:
+                                    feedback.append(("error", f"{len(text_rates)} claim(s) have `reimbursement_rate` > 1.0. Rates must be decimal fractions (100% → 1.0, 70% → 0.7), not percentages."))
+
+                    # Render feedback
+                    if feedback:
+                        st.markdown("**Automated Feedback:**")
+                        for level, msg in feedback:
+                            if level == "success":
+                                st.success(msg)
+                            elif level == "warning":
+                                st.warning(msg)
+                            elif level == "error":
+                                st.error(msg)
+                            else:
+                                st.info(msg)
+
+        conn.close()
+
+    # ------------------------------------------------------------------
+    # Section 3: Download
+    # ------------------------------------------------------------------
+    st.divider()
+    st.markdown("### Download for Grading")
+    st.markdown("Download all submitted data as an Excel workbook. Each table is a separate sheet. A Summary sheet shows record counts by group.")
+
+    def build_excel_workbook():
+        output = io.BytesIO()
+        conn = get_connection()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            # Summary sheet
+            summary_rows = []
+            for grp in GROUPS:
+                required = GROUP_TABLES.get(grp, [])
+                for table in ALL_TABLES:
+                    try:
+                        count = conn.execute(
+                            f"SELECT COUNT(*) FROM {table} WHERE source_system = ?", (grp,)
+                        ).fetchone()[0]
+                    except Exception:
+                        count = 0
+                    required_flag = "Yes" if table in required else "No"
+                    submitted_flag = "✓" if count > 0 else ("✗ Missing" if table in required else "—")
+                    summary_rows.append({
+                        "Group": grp,
+                        "Table": table,
+                        "Required": required_flag,
+                        "Records Submitted": count,
+                        "Status": submitted_flag,
+                    })
+            pd.DataFrame(summary_rows).to_excel(writer, sheet_name="Summary", index=False)
+
+            # One sheet per table with all groups
+            for table in ALL_TABLES:
+                try:
+                    df = pd.read_sql_query(
+                        f"SELECT * FROM {table} ORDER BY source_system", conn
+                    )
+                    if not df.empty:
+                        df.to_excel(writer, sheet_name=table[:31], index=False)
+                except Exception:
+                    pass
+
+        conn.close()
+        output.seek(0)
+        return output.read()
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if st.button("Generate Excel Workbook", type="primary", key="gen_excel_btn"):
+            with st.spinner("Building workbook — this may take a few seconds..."):
+                try:
+                    excel_bytes = build_excel_workbook()
+                    st.session_state["excel_ready"] = excel_bytes
+                except Exception as e:
+                    st.error(f"Error building workbook: {e}")
+
+        if st.session_state.get("excel_ready"):
+            st.download_button(
+                label="⬇ Download All Data (Excel)",
+                data=st.session_state["excel_ready"],
+                file_name="hie_interoperability_lab_submissions.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="dl_excel_btn",
+            )
+
+    with col_b:
+        if selected_group_export and selected_group_export != "-- Select a group --":
+            def build_group_csv(grp):
+                conn = get_connection()
+                frames = []
+                for table in ALL_TABLES:
+                    try:
+                        df = pd.read_sql_query(
+                            f"SELECT ? as _table, * FROM {table} WHERE source_system = ?",
+                            conn, params=(table, grp)
+                        )
+                        frames.append(df)
+                    except Exception:
+                        pass
+                conn.close()
+                if frames:
+                    return pd.concat(frames, ignore_index=True).to_csv(index=False).encode("utf-8")
+                return b""
+
+            csv_bytes = build_group_csv(selected_group_export)
+            if csv_bytes:
+                safe_name = re.sub(r"[^a-zA-Z0-9]", "_", selected_group_export)
+                st.download_button(
+                    label=f"⬇ Download {selected_group_export} Only (CSV)",
+                    data=csv_bytes,
+                    file_name=f"hie_submission_{safe_name}.csv",
+                    mime="text/csv",
+                    key="dl_csv_btn",
+                )
