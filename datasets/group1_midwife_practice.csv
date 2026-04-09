@@ -1,0 +1,8 @@
+patient_last_name;patient_first_name;date_of_birth;social_security_num;visit_date;gestational_age_weeks;weight_kg;height_cm;blood_pressure;fetal_heart_rate;fundal_height_cm;fetal_movement;edema;urine_dipstick;clinical_notes;next_appointment
+Dupont;Marie;15/03/1993;;12/08/2025;12;68,5;165;11/7;Heard;10;;none;Normal;"First visit. G2P1. History: vaginal delivery 2020, 3.2kg. No significant history. Blood type A+. Pregnancy declaration completed.";09/09/2025
+DUPONT;Marie;15 mars 1993;;09-Sep-25;16;69,2;165;12/7;142;14;yes;none;Normal;Normal exam. First trimester ultrasound done - see imaging report. Estimated due date confirmed 14/05/2025;07/10/2025
+Dupont;Marie Claire;15/03/1993;;7/10/2025;20;71;165;11/8;145;20;active;none;protein -;"Morphology ultrasound appointment booked. Patient feels well, no complaints.";04/11/2025
+Dupont;Marie;15/03/93;;04/11/2025;24;72,5;165;12/8;140;24;yes;traces;glucose ++;"Glucose tolerance test prescribed - suspected gestational diabetes. Fasting blood draw at lab.";02/12/2025
+DUPONT;Marie;15/03/1993;;02/12/2025;28;74;165;13/8;148;27;yes;none;protein +;"OGTT result: gestational diabetes confirmed. Patient referred to Dr Martin at obstetric clinic for specialist management. Continuing midwife follow-up in alternation.";30/12/2025
+Dupont;Marie;15/03/1993;;30/12/2025;32;75,8;165;14/9;144;31;active;ankles +;protein +;"BP borderline. Lower limb edema. Proteinuria to monitor. Contacted Dr Martin for advice. Rest recommended.";14/01/2026
+Dupont;Marie;15/03/1993;;14/01/2026;34;76,2;165;13,5/9;146;33;decreas??d;ankles ++;protein ++;"Called Dr Martin. Unstable BP. Proteinuria. Close monitoring. Patient informed of preeclampsia warning signs: headaches, visual disturbances, epigastric pain.";

@@ -1,0 +1,25 @@
+# Database files — created fresh on app startup, do not commit
+*.db
+*.db-shm
+*.db-wal
+
+# Instructor answer key — do not publish
+INSTRUCTOR_ANSWER_KEY.docx
+datasets/INSTRUCTOR_ANSWER_KEY.md
+
+# Word documents — not needed for the app
+*.docx
+
+# Conversion utility — local use only
+convert_to_docx.py
+
+# Legacy SQLite guide — superseded by streamlit_app_guide.md
+sqlite_setup_guide.md
+
+# Mac OS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.env
