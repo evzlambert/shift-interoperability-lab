@@ -262,7 +262,7 @@ In the datasets, watch for:
    - Think ahead: will this issue cause a problem when you try to insert this data into the HIE database?
 4. Clean your dataset as best you can — document what you changed and why
 5. Prepare a 2-minute summary of your setting's key data challenges
-6. **Preview the HIE schema** before Phase 2 starts: open the app at the URL your instructor provides, select your group, and browse the schema in the sidebar — this will help you anticipate what transformations you'll need
+6. **Preview the HIE schema** before Phase 2 starts: open **https://shift-interoperability-lab-eksxqkfwaeq2pvmxwjay5h.streamlit.app/**, select your group in the sidebar, and browse the schema reference — this will help you anticipate what transformations you'll need
 
 **Deliverable:** Completed Data Quality Assessment Worksheet + cleaned dataset
 
@@ -273,7 +273,7 @@ In the datasets, watch for:
 **Instructions:**
 
 **Part A — Submit your data (30 minutes):**
-1. Open the **HIE Streamlit App** in your browser at the URL your instructor provides (e.g., `http://192.168.1.XX:8501`)
+1. Open the **HIE Streamlit App** in your browser: **https://shift-interoperability-lab-eksxqkfwaeq2pvmxwjay5h.streamlit.app/**
 2. Select your group in the left sidebar
 3. Review the schema for your target tables (sidebar → Quick Schema Reference)
 4. Write SQL INSERT statements in the **Insert Data** tab to load your cleaned data into the HIE
@@ -558,13 +558,14 @@ There are two types of entries:
 - Limitation: Requires some technical comfort with JSON and REST APIs; better suited if students have some informatics background
 - Alternative: Use the FHIR server for instructor demonstration only
 
-**Option D: HIE Streamlit App — Shared Database (Recommended for Informatics Learners)**
+**Option D: HIE Streamlit App — Cloud-Hosted Shared Database (Recommended for Informatics Learners)**
 
-> **This is the primary option for this lab.** No download or installation required for students — they access the app in any web browser.
+> **This is the primary option for this lab.** The app is hosted in the cloud — no installation, no local setup, no WiFi restrictions. Students open a URL in any browser and they are connected.
 
-- The instructor runs `streamlit run hie_app.py` on their laptop (one command, no setup for students)
-- A shared HIE SQLite database is created automatically when the app starts
-- Students connect to the app from their laptops over classroom WiFi
+**App URL: https://shift-interoperability-lab-eksxqkfwaeq2pvmxwjay5h.streamlit.app/**
+
+- Nothing to install — students open the URL on any device (laptop, tablet, phone)
+- A shared HIE SQLite database is hosted in the cloud; all students connect to the same database automatically
 - Each group selects their group name in the sidebar; the app tracks submissions by group
 - Groups write SQL INSERT statements to load their cleaned data into the shared HIE schema
 - The **Dashboard** tab shows real-time submission progress across all 8 groups
@@ -649,28 +650,24 @@ Assign 1-2 students as ARS (Agence Regionale de Sante) observers who monitor the
 ## Instructor Preparation Checklist
 
 ### Technology Setup (Day Before)
-- [ ] Python 3.8+ installed on teaching laptop
-- [ ] Packages installed: `pip install streamlit pandas`
-- [ ] App tested: run `streamlit run hie_app.py` from the lab folder — confirms it opens at http://localhost:8501
-- [ ] Teaching laptop's local IP address noted (System Preferences → Network on macOS, or `ipconfig` on Windows)
-- [ ] `hie_shared.db` deleted so database is clean for class (if it exists from a test run)
-- [ ] App restarted so a fresh database is created
-- [ ] Student URL tested from a second device: `http://[your-ip]:8501`
-- [ ] Classroom WiFi confirmed to allow device-to-device connections (or laptop hotspot ready as backup)
+- [ ] Open **https://shift-interoperability-lab-eksxqkfwaeq2pvmxwjay5h.streamlit.app/** and confirm the app loads
+- [ ] Sign in to **https://share.streamlit.io** — locate the app and confirm you can see the ⋮ menu and Reboot option
+- [ ] Test the app on a second device (phone or tablet) to confirm it works on any browser
 
 ### Materials Preparation (Day Before)
-- [ ] 8 CSV dataset files ready to distribute (in `datasets/` folder) — one per group
-- [ ] Clinical Reference Sheet printed or emailed to all students
+- [ ] 8 CSV dataset files distributed to each group — email or shared drive (in `datasets/` folder)
+- [ ] Clinical Reference Sheet printed or sent digitally to all students
 - [ ] Data Quality Assessment Worksheets printed (1 per student or per group)
 - [ ] Interoperability Challenge Logs printed (1 per group)
 - [ ] Instructor Answer Key reviewed (do NOT distribute to students)
 - [ ] Phase 3B slides prepared mapping student experience to real standards
 - [ ] Groups assigned in advance or randomization method prepared
 
-### Day of Class
-- [ ] Start the Streamlit app: `streamlit run hie_app.py --server.address 0.0.0.0`
-- [ ] Write the student URL on the board or slide: `http://[your-ip]:8501`
-- [ ] Project the Dashboard tab on the classroom screen during Phase 2
+### Day of Class — Before Students Arrive
+- [ ] **Reboot the app** to reset the database: share.streamlit.io → find app → ⋮ → Reboot app
+- [ ] Confirm the app loads and the Dashboard shows 0 records
+- [ ] Write the URL on the board: **https://shift-interoperability-lab-eksxqkfwaeq2pvmxwjay5h.streamlit.app/**
+- [ ] Open the Dashboard tab on your projected screen — leave it visible throughout Phase 2
 - [ ] Brief students: clinical knowledge is NOT required — they are acting as data/IT professionals
 
 ### Optional Enhancements

@@ -6,9 +6,11 @@
 
 ## What Is the HIE App?
 
-The **HIE (Health Information Exchange) Streamlit App** is a web-based tool built specifically for this lab. It replaces any need to download or install DB Browser for SQLite. Students and instructors access it directly in a web browser.
+The **HIE (Health Information Exchange) Streamlit App** is a web-based tool built specifically for this lab. No installation is required — students and instructors open it directly in any web browser using the link below.
 
-The app simulates a **shared regional health information exchange platform** — the integration target where all 8 groups must submit their patient data. It runs locally on the instructor's laptop and students access it over the classroom WiFi network.
+**App URL:** **https://shift-interoperability-lab-eksxqkfwaeq2pvmxwjay5h.streamlit.app/**
+
+The app simulates a **shared regional health information exchange platform** — the integration target where all 8 groups must submit their patient data. Because it is hosted in the cloud, all students connect to the same shared database automatically. There is nothing to install, configure, or run locally.
 
 **The app has four tabs:**
 
@@ -27,93 +29,47 @@ The app simulates a **shared regional health information exchange platform** —
 
 ---
 
-## Before Class: One-Time Setup
+## Before Class: Setup (No Installation Required)
 
-### Step 1: Verify Python Is Installed
+The app is already deployed and running in the cloud. There is nothing to install.
 
-Open a terminal and check:
+### Step 1: Confirm the App Is Running
 
-```bash
-python3 --version
-```
+Open a browser and visit:
 
-You need Python 3.8 or higher. If not installed, download from https://www.python.org/downloads/
+**https://shift-interoperability-lab-eksxqkfwaeq2pvmxwjay5h.streamlit.app/**
 
-### Step 2: Install Required Packages
+You should see the "Regional Health Information Exchange (HIE)" app with four tabs and a sidebar. If the app is asleep (free tier hibernates after inactivity), click **"Wake app"** — it takes about 30 seconds to start.
 
-From the `SHIFT-Interoperability-Lab` folder, run:
+### Step 2: Reset the Database Before Each Class Session
 
-```bash
-pip install streamlit pandas
-```
+The database is shared across all users and persists between sessions. You must reset it before each new class so students start with a clean slate.
 
-Or if pip3 is your default:
+**To reset:**
+1. Go to **https://share.streamlit.io** and sign in with your GitHub account (evzlambert)
+2. Find `shift-interoperability-lab` in your app list
+3. Click the **⋮ (three dots)** menu next to the app
+4. Click **"Reboot app"**
+5. Wait about 30 seconds, then refresh the app URL — the database will be empty
 
-```bash
-pip3 install streamlit pandas
-```
+> Do this immediately before class begins, not hours before, as the app may hibernate again and auto-reset anyway.
 
-You only need to do this once.
-
-### Step 3: Test the App Before Class
-
-From the `SHIFT-Interoperability-Lab` folder, run:
-
-```bash
-streamlit run hie_app.py
-```
-
-The app should open automatically in your browser at **http://localhost:8501**
-
-You will see:
-- The title "Regional Health Information Exchange (HIE)"
-- Four tabs: Insert Data, Query Data, Dashboard, FHIR Explorer
-- A sidebar with "Your Group" selector and schema reference
-
-The first time it runs, the app automatically creates the `hie_shared.db` database file in the same folder. You do **not** need to create this file manually.
-
-### Step 4: Prepare Student Access
-
-Students access the app over the classroom WiFi. To get the shareable URL:
-
-1. Start the app with:
-   ```bash
-   streamlit run hie_app.py --server.address 0.0.0.0
-   ```
-
-2. Find your laptop's local IP address:
-   - **macOS:** `System Preferences → Network` or run `ipconfig getifaddr en0` in terminal
-   - **Windows:** Run `ipconfig` in command prompt, look for "IPv4 Address"
-   - Example: `192.168.1.45`
-
-3. Give students the URL: **`http://192.168.1.45:8501`**
-
-> **Important:** Your laptop and all student devices must be on the **same WiFi network**. If the classroom has a guest/restricted network, check that device-to-device connections are allowed. If not, use your laptop as a hotspot.
-
-### Step 5: Distribute Student Materials
+### Step 3: Distribute Student Materials
 
 Before class, make sure each group has:
-- [ ] Their group's CSV file (from the `datasets/` folder)
+- [ ] Their group's CSV file (from the `datasets/` folder) — send by email or shared drive in advance
 - [ ] A printed or digital copy of the Clinical Reference Sheet
 - [ ] A printed Data Quality Assessment Worksheet
 - [ ] A printed Interoperability Challenge Log
-- [ ] The URL of the Streamlit app
+- [ ] The app URL: **https://shift-interoperability-lab-eksxqkfwaeq2pvmxwjay5h.streamlit.app/**
 
----
+### Step 4: Share the URL With Students
 
-## Resetting the Database
+Write this on the board or put it on a slide at the start of class:
 
-### Between runs of the same class session:
-The `hie_shared.db` file stores all inserted data. To wipe it and start fresh:
+> **HIE App:** https://shift-interoperability-lab-eksxqkfwaeq2pvmxwjay5h.streamlit.app/
 
-1. Stop the app (Ctrl+C in terminal)
-2. Delete the `hie_shared.db` file (and `hie_shared.db-shm` and `hie_shared.db-wal` if present)
-3. Restart: `streamlit run hie_app.py`
-
-The app recreates the database automatically on startup.
-
-### Between different class sections:
-Delete `hie_shared.db` as above before each new class session so groups start with a clean slate.
+Every student device — phone, tablet, laptop — can open this in any browser. No WiFi restrictions, no setup, no accounts required.
 
 ---
 
@@ -137,7 +93,7 @@ Click **Refresh Dashboard** to update the view. This is useful to project on the
 
 **Phase 2 (Data Exchange, 45 min):**
 - This is when groups start using the app
-- Direct students to the app URL
+- Remind students of the URL: **https://shift-interoperability-lab-eksxqkfwaeq2pvmxwjay5h.streamlit.app/**
 - Watch the Dashboard tab and project it on screen — the real-time counter creates energy
 - Expect errors! SQL errors are pedagogically intentional — they surface the ETL challenges
 - Group 6 (Hospital) and Group 8 (Insurance) should be submitting data from multiple sources, so watch for foreign key and patient matching issues
@@ -154,20 +110,24 @@ Click **Refresh Dashboard** to update the view. This is useful to project on the
 
 ## Instructor Preparation Checklist
 
-- [ ] Python 3.8+ installed on teaching laptop
-- [ ] `streamlit` and `pandas` installed (`pip install streamlit pandas`)
-- [ ] App tested — `streamlit run hie_app.py` opens without errors
-- [ ] Local IP address noted for sharing URL with students
-- [ ] `hie_shared.db` deleted/reset from any previous test runs
-- [ ] App restarted clean so database is empty on class day
-- [ ] Student devices can reach `http://[your-ip]:8501` on classroom WiFi (test this!)
-- [ ] CSV datasets in `datasets/` folder confirmed present (8 files)
-- [ ] Clinical Reference Sheets distributed or printed
+### App (Day Before)
+- [ ] Open **https://shift-interoperability-lab-eksxqkfwaeq2pvmxwjay5h.streamlit.app/** and confirm it loads
+- [ ] Sign in to https://share.streamlit.io and locate the app — familiarize yourself with the Reboot option
+
+### App (Day of Class — Just Before Students Arrive)
+- [ ] **Reboot the app** via share.streamlit.io → ⋮ → Reboot app (resets the database to empty)
+- [ ] Confirm the app loads and the Dashboard shows 0 records
+- [ ] Write the URL on the board or put it on a slide: **https://shift-interoperability-lab-eksxqkfwaeq2pvmxwjay5h.streamlit.app/**
+- [ ] Open the Dashboard tab on your projected screen — leave it visible throughout Phase 2
+
+### Materials
+- [ ] CSV datasets distributed to each group (8 files from `datasets/` folder)
+- [ ] Clinical Reference Sheet printed or sent digitally to all students
 - [ ] Data Quality Assessment Worksheets printed (1 per student or per group)
 - [ ] Interoperability Challenge Logs printed (1 per group)
-- [ ] Instructor Answer Key reviewed (do NOT distribute to students)
+- [ ] Instructor Answer Key reviewed — do NOT distribute to students
 - [ ] Phase 3B slides prepared (real-world standards mapping)
-- [ ] Optional: prepared FHIR demonstration on HAPI test server
+- [ ] Optional: FHIR demonstration prepared using HAPI test server
 
 ---
 
@@ -251,13 +211,13 @@ In this exercise, the Streamlit app simulates an HIE. Each of your 8 groups repr
 
 ### Step 1: Open the App
 
-Open a web browser and go to the URL your instructor gives you. It will look like:
+Open any web browser on your laptop, tablet, or phone and go to:
 
-```
-http://192.168.1.XX:8501
-```
+**https://shift-interoperability-lab-eksxqkfwaeq2pvmxwjay5h.streamlit.app/**
 
-You should see the **Regional Health Information Exchange (HIE)** app.
+You should see the **Regional Health Information Exchange (HIE)** app with four tabs across the top and a sidebar on the left. If you see a "This app has gone to sleep" message, click **"Wake app"** and wait about 30 seconds.
+
+> You do not need to create an account, log in, or install anything.
 
 ### Step 2: Select Your Group
 
