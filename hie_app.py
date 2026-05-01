@@ -594,6 +594,825 @@ def get_all_fhir_resources():
 
 
 # ---------------------------------------------------------------------------
+# Per-group INSERT templates
+# ---------------------------------------------------------------------------
+
+def get_group_templates(group: str) -> dict:
+    """Return an ordered dict of {label: template_sql} for the given group."""
+    t = {}
+
+    if group == "Group 1 - Midwife Practice":
+        t["patients  (Step 1 of 3)"] = f"""\
+-- STEP 1 of 3 — Insert the patient
+-- DATE: Convert DD/MM/YYYY or DD-MMM-YY → YYYY-MM-DD
+--       e.g. 15/03/1993 → '1993-03-15'
+-- After Execute, write down the patient_id from the green banner.
+
+INSERT INTO patients (
+    last_name,
+    first_name,
+    date_of_birth,      -- REQUIRED  YYYY-MM-DD format
+    sex,                -- 'F' or 'M'
+    source_system
+) VALUES (
+    'DUPONT',           -- REPLACE if different in your CSV
+    'Marie',            -- REPLACE if different
+    '1993-03-15',       -- REPLACE with converted date
+    'F',
+    '{group}'
+);"""
+
+        t["encounters  (Step 2 of 3 — one per visit)"] = f"""\
+-- STEP 2 of 3 — Insert one prenatal encounter (repeat for each visit row)
+-- REPLACE patient_id with the number from Step 1.
+-- DATE: Convert DD/MM/YYYY or DD-MMM-YY → YYYY-MM-DD
+-- After Execute, write down the encounter_id for Step 3.
+
+INSERT INTO encounters (
+    patient_id,         -- REQUIRED  number from Step 1
+    encounter_type,     -- use 'outpatient' for all prenatal visits
+    facility_name,
+    provider_name,
+    encounter_date,     -- REQUIRED  YYYY-MM-DD  (e.g. 12/08/2025 → '2025-08-12')
+    encounter_time,     -- optional  HH:MM  or NULL
+    chief_complaint,
+    source_system,
+    source_encounter_id
+) VALUES (
+    1,                          -- REPLACE with your patient_id
+    'outpatient',
+    'YOUR_FACILITY_NAME',       -- REPLACE
+    'YOUR_PROVIDER_NAME',       -- REPLACE
+    'YYYY-MM-DD',               -- REPLACE
+    NULL,                       -- or 'HH:MM'
+    'Prenatal visit week XX',   -- REPLACE
+    '{group}',
+    NULL                        -- or your visit ID if CSV has one
+);"""
+
+        t["vitals  (Step 3 of 3 — one per visit)"] = f"""\
+-- STEP 3 of 3 — Insert vitals for one visit (repeat for each visit)
+-- BLOOD PRESSURE: French shorthand "11/7" → systolic=110, diastolic=70  (multiply by 10)
+-- WEIGHT: comma decimal → dot decimal  ("68,5" → 68.5)
+
+INSERT INTO vitals (
+    patient_id,         -- REQUIRED  your patient_id from Step 1
+    encounter_id,       -- encounter_id from Step 2 for this visit
+    measurement_date,   -- REQUIRED  YYYY-MM-DD
+    measurement_time,   -- optional  HH:MM  or NULL
+    systolic_bp,        -- INTEGER mmHg  ("11/7" → 110)
+    diastolic_bp,       -- INTEGER mmHg  ("11/7" → 70)
+    heart_rate,         -- INTEGER bpm  or NULL
+    weight_kg,          -- REAL kg  ("68,5" → 68.5)
+    notes,              -- free text for anything else, or NULL
+    source_system
+) VALUES (
+    1,       -- REPLACE with your patient_id
+    1,       -- REPLACE with this visit's encounter_id
+    'YYYY-MM-DD',   -- REPLACE
+    NULL,
+    110,     -- REPLACE  e.g. "11/7" → systolic 110
+    70,      -- REPLACE  e.g. "11/7" → diastolic 70
+    NULL,    -- REPLACE or NULL
+    68.5,    -- REPLACE  e.g. "68,5" → 68.5
+    NULL,
+    '{group}'
+);"""
+
+    elif group == "Group 2 - Laboratory":
+        t["patients  (Step 1 of 2)"] = f"""\
+-- STEP 1 of 2 — Insert the patient
+-- The lab uses INS (national_health_id). Add it if present in your CSV.
+-- After Execute, write down the patient_id from the green banner.
+
+INSERT INTO patients (
+    national_health_id, -- INS number from your CSV, or NULL
+    last_name,
+    first_name,
+    date_of_birth,      -- REQUIRED  YYYY-MM-DD
+    sex,
+    source_system,
+    source_patient_id   -- patient ID in your lab system, or NULL
+) VALUES (
+    '293031593',        -- REPLACE with INS from your CSV, or NULL
+    'DUPONT',
+    'MARIE',
+    '1993-03-15',
+    'F',
+    '{group}',
+    'YOUR_LAB_PATIENT_ID'
+);"""
+
+        t["lab_results  (Step 2 of 2 — one per test)"] = f"""\
+-- STEP 2 of 2 — Insert one lab result (repeat for each test row)
+-- UNITS:   g/L → mmol/L  multiply by 5.55  (e.g. 1.14 g/L → 6.33 mmol/L)
+-- NAMES:   expand truncated test names in full — never use "Antibody Screen (Ir"
+-- NUMBERS: result_value must be numeric with no quotes  (6.3 not '6.3')
+-- FLAGS:   standardize to 'H', 'L', or 'N'  ('Haut' → 'H')
+-- CORRECTED: set is_corrected=1 for the correction row; 0 for all others
+
+INSERT INTO lab_results (
+    patient_id,         -- REQUIRED  number from Step 1
+    test_date,          -- REQUIRED  YYYY-MM-DD
+    test_time,          -- HH:MM  or NULL
+    test_code,          -- NABM or LOINC code, or NULL
+    test_name,          -- REQUIRED  full name — no truncation allowed
+    result_value,       -- REAL number, no quotes  (or NULL if result_text is used)
+    result_text,        -- for non-numeric results  e.g. 'Positive'  or NULL
+    unit,               -- use 'mmol/L' after conversion
+    reference_low,      -- REAL  or NULL
+    reference_high,     -- REAL  or NULL
+    flag,               -- 'H', 'L', or 'N'
+    is_corrected,       -- 1 if this corrects a prior result; 0 otherwise
+    notes,
+    source_system,
+    source_test_id
+) VALUES (
+    1,                  -- REPLACE with your patient_id
+    'YYYY-MM-DD',       -- REPLACE
+    NULL,               -- or 'HH:MM'
+    NULL,               -- NABM code or NULL
+    'Full Test Name',   -- REPLACE — write the complete name
+    6.3,                -- REPLACE — numeric, no quotes; convert g/L × 5.55 first
+    NULL,               -- or 'Positive' etc. for non-numeric
+    'mmol/L',           -- REPLACE unit
+    3.9,                -- REPLACE reference low, or NULL
+    5.5,                -- REPLACE reference high, or NULL
+    'H',                -- REPLACE: 'H', 'L', or 'N'
+    0,                  -- REPLACE: 1 if corrected result, 0 otherwise
+    NULL,
+    '{group}',
+    'YOUR_TEST_ID'      -- or NULL
+);"""
+
+    elif group == "Group 3 - Imaging Center":
+        t["patients  (Step 1 of 3)"] = f"""\
+-- STEP 1 of 3 — Insert the patient
+-- NOTE: Your RIS truncates patient names to 30 characters.
+--       Use the full name even if your CSV shows a truncated version.
+-- After Execute, write down the patient_id from the green banner.
+
+INSERT INTO patients (
+    last_name,
+    first_name,
+    date_of_birth,      -- REQUIRED  YYYY-MM-DD
+    sex,
+    source_system,
+    source_patient_id
+) VALUES (
+    'DUPONT',           -- use full name even if CSV is truncated
+    'Marie',
+    '1993-03-15',
+    'F',
+    '{group}',
+    'YOUR_RIS_PATIENT_ID'  -- or NULL
+);"""
+
+        t["encounters  (Step 2 of 3 — one per exam)"] = f"""\
+-- STEP 2 of 3 — Insert one imaging encounter (repeat for each exam row)
+-- DATE: Convert DICOM format YYYYMMDD → YYYY-MM-DD
+--       e.g. 20250816 → '2025-08-16'
+-- After Execute, write down the encounter_id for Step 3.
+
+INSERT INTO encounters (
+    patient_id,         -- REQUIRED  number from Step 1
+    encounter_type,     -- use 'outpatient' for all imaging visits
+    facility_name,
+    encounter_date,     -- REQUIRED  YYYY-MM-DD  (convert from DICOM YYYYMMDD)
+    procedure_text,     -- exam type description
+    notes,              -- document internal codes that don't map to CCAM
+    source_system,
+    source_encounter_id
+) VALUES (
+    1,                              -- REPLACE with your patient_id
+    'outpatient',
+    'YOUR_IMAGING_CENTER',          -- REPLACE
+    'YYYY-MM-DD',                   -- REPLACE  (convert from YYYYMMDD)
+    'YOUR_EXAM_TYPE',               -- REPLACE  e.g. 'Obstetric Ultrasound'
+    'Internal exam code: YOUR_CODE (no CCAM mapping available)',
+    '{group}',
+    'YOUR_EXAM_ID'                  -- or NULL
+);"""
+
+        t["imaging  (Step 3 of 3 — one per exam)"] = f"""\
+-- STEP 3 of 3 — Insert the imaging record for one exam (repeat for each exam)
+-- PDF reports: set report_text to a note — do not leave blank.
+
+INSERT INTO imaging (
+    patient_id,          -- REQUIRED  your patient_id from Step 1
+    encounter_id,        -- encounter_id from Step 2 for this exam
+    exam_date,           -- REQUIRED  YYYY-MM-DD
+    exam_type,           -- REQUIRED  e.g. 'Obstetric Ultrasound - 2nd Trimester'
+    findings_structured, -- key findings in plain text, or NULL
+    report_text,         -- narrative report text; for PDF-only scans use:
+                         --   'Report available as scanned PDF only — not machine readable'
+    measurements,        -- e.g. 'BPD: 34mm, FL: 22mm, AC: 107mm'  or NULL
+    radiologist,
+    source_system,
+    source_exam_id
+) VALUES (
+    1,                   -- REPLACE with your patient_id
+    1,                   -- REPLACE with your encounter_id
+    'YYYY-MM-DD',        -- REPLACE
+    'YOUR_EXAM_TYPE',    -- REPLACE
+    'YOUR_FINDINGS',     -- or NULL
+    'YOUR_REPORT_TEXT',  -- REPLACE  (or PDF note above)
+    'YOUR_MEASUREMENTS', -- or NULL
+    'YOUR_RADIOLOGIST',  -- or NULL
+    '{group}',
+    'YOUR_EXAM_ID'       -- or NULL
+);"""
+
+    elif group == "Group 4 - Obstetric Clinic":
+        t["patients  (Step 1 of 4)"] = f"""\
+-- STEP 1 of 4 — Insert the patient
+-- ⚠ YOUR CSV HAS TWO PATIENTS WITH SIMILAR NAMES:
+--     DUPONT, Marie  DOB 15/03/1993  ← CORRECT — insert this one
+--     DUPOND, Marie  DOB 16/03/1993  ← DIFFERENT PATIENT — do NOT insert
+-- Carte Vitale number → use insurance_number field (not national_health_id).
+-- After Execute, write down the patient_id from the green banner.
+
+INSERT INTO patients (
+    last_name,
+    first_name,
+    date_of_birth,      -- REQUIRED  YYYY-MM-DD  (15/03/1993 → '1993-03-15')
+    sex,
+    insurance_number,   -- Carte Vitale number from your CSV
+    source_system,
+    source_patient_id
+) VALUES (
+    'DUPONT',                    -- verify spelling — NOT 'DUPOND'
+    'Marie',
+    '1993-03-15',
+    'F',
+    'YOUR_CARTE_VITALE_NUMBER',  -- REPLACE
+    '{group}',
+    'YOUR_CLINIC_PATIENT_ID'     -- or NULL
+);"""
+
+        t["encounters  (Step 2 of 4 — one per visit)"] = f"""\
+-- STEP 2 of 4 — Insert one clinic encounter (repeat for each visit)
+-- DUPLICATES: Your CSV has duplicate visit entries from a system migration.
+--   Insert each visit ONCE. If you see the exact same visit twice, skip the second
+--   and document it in your Interoperability Challenge Log.
+-- After Execute, write down the encounter_id for Steps 3 and 4.
+
+INSERT INTO encounters (
+    patient_id,         -- REQUIRED  number from Step 1
+    encounter_type,     -- use 'outpatient'
+    facility_name,
+    provider_name,
+    encounter_date,     -- REQUIRED  YYYY-MM-DD
+    chief_complaint,
+    diagnosis_code,     -- CIM-10 code from your CSV, or NULL
+    diagnosis_text,
+    procedure_code,     -- CCAM code if present, or NULL
+    notes,
+    source_system,
+    source_encounter_id
+) VALUES (
+    1,                  -- REPLACE with your patient_id
+    'outpatient',
+    'YOUR_CLINIC_NAME', -- REPLACE
+    'YOUR_PROVIDER',    -- REPLACE
+    'YYYY-MM-DD',       -- REPLACE
+    'YOUR_COMPLAINT',   -- REPLACE
+    'YOUR_CIM10_CODE',  -- or NULL
+    'YOUR_DIAGNOSIS',   -- or NULL
+    'YOUR_CCAM_CODE',   -- or NULL
+    NULL,
+    '{group}',
+    'YOUR_VISIT_ID'     -- or NULL
+);"""
+
+        t["vitals  (Step 3 of 4 — one per visit)"] = f"""\
+-- STEP 3 of 4 — Insert vitals for one visit (repeat for each visit with vitals)
+-- BLOOD PRESSURE: French shorthand "13/8" → systolic=130, diastolic=80
+
+INSERT INTO vitals (
+    patient_id,
+    encounter_id,
+    measurement_date,   -- YYYY-MM-DD
+    systolic_bp,        -- INTEGER mmHg  (e.g. "13/8" → 130)
+    diastolic_bp,       -- INTEGER mmHg  (e.g. "13/8" → 80)
+    heart_rate,         -- INTEGER bpm  or NULL
+    weight_kg,          -- REAL kg  dot decimal
+    notes,
+    source_system
+) VALUES (
+    1,              -- REPLACE with your patient_id
+    1,              -- REPLACE with this visit's encounter_id
+    'YYYY-MM-DD',   -- REPLACE
+    130,            -- REPLACE systolic
+    80,             -- REPLACE diastolic
+    NULL,           -- REPLACE or NULL
+    NULL,           -- REPLACE or NULL
+    NULL,
+    '{group}'
+);"""
+
+        t["medications  (Step 4 of 4 — one per medication)"] = f"""\
+-- STEP 4 of 4 — Insert one medication (repeat for each medication row)
+-- DOSE DISCREPANCY: Your CSV shows Methyldopa at two different doses.
+--   Record what your CSV says, then document the discrepancy in the notes field.
+--   Do not guess which dose is correct.
+
+INSERT INTO medications (
+    patient_id,
+    encounter_id,
+    medication_name,    -- REQUIRED
+    dose,               -- e.g. '250mg'
+    route,              -- e.g. 'oral'
+    frequency,          -- e.g. 'twice daily'
+    start_date,         -- YYYY-MM-DD  or NULL
+    notes,              -- document dose discrepancies or allergy info here
+    source_system
+) VALUES (
+    1,                  -- REPLACE with your patient_id
+    1,                  -- REPLACE with encounter_id
+    'YOUR_MEDICATION',  -- REPLACE
+    'YOUR_DOSE',        -- REPLACE  e.g. '250mg'
+    'oral',             -- REPLACE if different
+    'YOUR_FREQUENCY',   -- REPLACE  e.g. 'twice daily'
+    'YYYY-MM-DD',       -- REPLACE  or NULL
+    'YOUR_NOTES',       -- e.g. 'DISCREPANCY: clinic record shows 500mg/day; patient reported 750mg/day. Unresolved in source system.'
+    '{group}'
+);"""
+
+    elif group == "Group 5 - EMS Ambulance":
+        t["patients  (Step 1 of 4)"] = f"""\
+-- STEP 1 of 4 — Insert the patient
+-- NAME CORRECTION: Dispatcher recorded "Du Pont" phonetically → correct to 'DUPONT'
+-- DATE: The encounter date is 2026-01-28 (assumed from clinical timeline when date was missing in CSV)
+-- After Execute, write down the patient_id from the green banner.
+
+INSERT INTO patients (
+    last_name,
+    first_name,
+    date_of_birth,      -- YYYY-MM-DD
+    sex,
+    source_system,
+    source_patient_id
+) VALUES (
+    'DUPONT',           -- corrected from phonetic 'Du Pont'
+    'Marie',
+    '1993-03-15',
+    'F',
+    '{group}',
+    'YOUR_SAMU_ID'      -- or NULL
+);"""
+
+        t["encounters  (Step 2 of 4)"] = f"""\
+-- STEP 2 of 4 — Insert the emergency transport encounter
+-- TRIAGE: Red color code → encounter_type = 'emergency'
+-- TIME: 24-hour HH:MM format.
+-- DATE: Use '2026-01-28' if missing in your CSV; document the assumption in notes.
+-- After Execute, write down the encounter_id for Steps 3 and 4.
+
+INSERT INTO encounters (
+    patient_id,         -- REQUIRED  number from Step 1
+    encounter_type,     -- 'emergency'
+    facility_name,      -- origin → destination
+    provider_name,
+    encounter_date,     -- '2026-01-28'  (assumed — document if missing)
+    encounter_time,     -- HH:MM 24-hour format
+    chief_complaint,
+    diagnosis_code,     -- or NULL
+    diagnosis_text,
+    notes,              -- document truncated handoff text + GCS score here
+    source_system,
+    source_encounter_id
+) VALUES (
+    1,                  -- REPLACE with your patient_id
+    'emergency',
+    'SAMU Mobile Unit → YOUR_HOSPITAL',    -- REPLACE
+    'YOUR_PROVIDER',
+    '2026-01-28',
+    'HH:MM',            -- REPLACE with dispatch time
+    'YOUR_CHIEF_COMPLAINT',                -- REPLACE
+    NULL,               -- or CIM-10 code if available
+    'YOUR_DIAGNOSIS',   -- or NULL
+    'Handoff notes (200-char limit — truncated): YOUR_TEXT. GCS: 15. Date assumed from clinical context.',
+    '{group}',
+    'YOUR_INCIDENT_ID'  -- or NULL
+);"""
+
+        t["vitals  (Step 3 of 4)"] = f"""\
+-- STEP 3 of 4 — Insert transport vitals
+-- FIELD NAME MAPPING: TA / tension / BP → systolic_bp and diastolic_bp
+-- GCS (Glasgow Coma Scale): numeric score goes in the notes field, not a separate column
+
+INSERT INTO vitals (
+    patient_id,
+    encounter_id,
+    measurement_date,
+    measurement_time,   -- HH:MM of measurement
+    systolic_bp,        -- INTEGER  (from TA/BP/tension field in your CSV)
+    diastolic_bp,       -- INTEGER
+    heart_rate,         -- INTEGER  or NULL
+    spo2,               -- INTEGER %  or NULL
+    respiratory_rate,   -- INTEGER  or NULL
+    notes,              -- include GCS here  e.g. 'GCS: 15'
+    source_system
+) VALUES (
+    1,              -- REPLACE with your patient_id
+    1,              -- REPLACE with encounter_id
+    '2026-01-28',
+    'HH:MM',        -- REPLACE
+    185,            -- REPLACE systolic (from TA/BP/tension field)
+    115,            -- REPLACE diastolic
+    NULL,           -- REPLACE or NULL
+    NULL,           -- REPLACE or NULL
+    NULL,           -- REPLACE or NULL
+    'GCS: 15',      -- REPLACE — put GCS score here
+    '{group}'
+);"""
+
+        t["medications  (Step 4 of 4 — one per med given)"] = f"""\
+-- STEP 4 of 4 — Insert medications given during transport (repeat for each)
+
+INSERT INTO medications (
+    patient_id,
+    encounter_id,
+    medication_name,    -- REQUIRED
+    dose,
+    route,              -- e.g. 'IV', 'IM', 'oral'
+    frequency,
+    start_date,         -- date given: '2026-01-28'
+    notes,
+    source_system
+) VALUES (
+    1,                  -- REPLACE with your patient_id
+    1,                  -- REPLACE with encounter_id
+    'YOUR_MEDICATION',  -- REPLACE
+    'YOUR_DOSE',        -- REPLACE  or NULL
+    'YOUR_ROUTE',       -- REPLACE
+    NULL,
+    '2026-01-28',
+    NULL,
+    '{group}'
+);"""
+
+    elif group == "Group 6 - Hospital Maternity":
+        t["patients — MOTHER  (Step 1 of 6)"] = f"""\
+-- STEP 1 of 6 — Insert the MOTHER as a patient
+-- You will insert TWO patients: mother (this step), then baby (Step 2).
+-- After Execute, write down the mother's patient_id — you will link the baby to it.
+
+INSERT INTO patients (
+    national_health_id, -- INS number from your CSV, or NULL
+    last_name,
+    first_name,
+    date_of_birth,      -- YYYY-MM-DD
+    sex,
+    source_system,
+    source_patient_id   -- hospital IPP number
+) VALUES (
+    '293031593',            -- REPLACE with INS from CSV, or NULL
+    'DUPONT',
+    'Marie',
+    '1993-03-15',
+    'F',
+    '{group}',
+    'IPP-2026-88431'        -- REPLACE with actual IPP
+);
+
+-- Write down the mother's patient_id — needed for Steps 2–6."""
+
+        t["patients — BABY  (Step 2 of 6)"] = f"""\
+-- STEP 2 of 6 — Insert the BABY as a separate patient, linked to the mother
+-- related_patient_id = mother's patient_id from Step 1
+-- Use the official name 'Louise DUPONT' even if your CSV still shows 'BG DUPONT'.
+--   Document the name discrepancy in your Interoperability Challenge Log.
+
+INSERT INTO patients (
+    last_name,
+    first_name,
+    date_of_birth,      -- baby's birth date: '2026-01-28'
+    sex,
+    related_patient_id, -- REQUIRED for linkage: mother's patient_id from Step 1
+    relationship_type,  -- 'child'
+    source_system,
+    source_patient_id   -- hospital newborn ID
+) VALUES (
+    'DUPONT',
+    'Louise',               -- use official name; note in Challenge Log if CSV shows 'BG DUPONT'
+    '2026-01-28',
+    'F',
+    1,                      -- REPLACE with mother's patient_id from Step 1
+    'child',
+    '{group}',
+    'NNE-2026-88431-01'     -- REPLACE with actual newborn ID
+);
+
+-- Write down the baby's patient_id — needed for baby-specific inserts."""
+
+        t["encounters  (Step 3 of 6 — one per encounter)"] = f"""\
+-- STEP 3 of 6 — Insert one encounter (repeat for mother's and baby's encounters separately)
+-- TIMESTAMPS: Your CSV uses ISO 8601 (YYYY-MM-DDTHH:MM:SS) → split into date + time
+--   e.g. '2026-01-28T15:25:00' → encounter_date='2026-01-28', encounter_time='15:25'
+
+INSERT INTO encounters (
+    patient_id,         -- use MOTHER's or BABY's patient_id as appropriate
+    encounter_type,     -- 'inpatient' for admission; 'outpatient' for consults
+    facility_name,
+    provider_name,
+    encounter_date,     -- YYYY-MM-DD  (from ISO timestamp)
+    encounter_time,     -- HH:MM  (from ISO timestamp)
+    admission_date,     -- YYYY-MM-DD  if inpatient, or NULL
+    discharge_date,     -- YYYY-MM-DD  if inpatient, or NULL
+    chief_complaint,
+    diagnosis_code,     -- CIM-10 code
+    diagnosis_text,
+    source_system,
+    source_encounter_id -- ADT message ID or encounter number
+) VALUES (
+    1,                  -- REPLACE: mother's or baby's patient_id
+    'inpatient',        -- REPLACE if different
+    'YOUR_HOSPITAL',    -- e.g. 'Hôpital Beaumont - Maternité L3'
+    'YOUR_PROVIDER',    -- REPLACE
+    'YYYY-MM-DD',       -- REPLACE
+    'HH:MM',            -- REPLACE
+    'YYYY-MM-DD',       -- admission date or NULL
+    'YYYY-MM-DD',       -- discharge date or NULL
+    'YOUR_COMPLAINT',   -- REPLACE
+    'O14.1',            -- REPLACE  e.g. 'O14.1' for severe preeclampsia
+    'YOUR_DIAGNOSIS',   -- REPLACE
+    '{group}',
+    'YOUR_ENCOUNTER_ID' -- REPLACE
+);"""
+
+        t["vitals  (Step 4 of 6 — one per measurement)"] = f"""\
+-- STEP 4 of 6 — Insert one vitals row (repeat for each measurement)
+-- Baby weight: if recorded in grams, convert to kg  (3100g → 3.1)
+
+INSERT INTO vitals (
+    patient_id,         -- mother's or baby's patient_id
+    encounter_id,
+    measurement_date,   -- YYYY-MM-DD
+    measurement_time,   -- HH:MM  or NULL
+    systolic_bp,        -- INTEGER mmHg  or NULL
+    diastolic_bp,       -- INTEGER mmHg  or NULL
+    heart_rate,         -- INTEGER  or NULL
+    spo2,               -- INTEGER %  or NULL
+    temperature,        -- REAL Celsius  or NULL
+    weight_kg,          -- REAL kg  (baby: grams ÷ 1000)
+    notes,
+    source_system
+) VALUES (
+    1,              -- REPLACE
+    1,              -- REPLACE
+    'YYYY-MM-DD',   -- REPLACE
+    'HH:MM',        -- REPLACE or NULL
+    NULL,           -- REPLACE or NULL
+    NULL,           -- REPLACE or NULL
+    NULL,           -- REPLACE or NULL
+    NULL,           -- REPLACE or NULL
+    NULL,           -- REPLACE or NULL
+    NULL,           -- REPLACE  (baby: grams ÷ 1000)
+    NULL,
+    '{group}'
+);"""
+
+        t["lab_results  (Step 5 of 6)"] = f"""\
+-- STEP 5 of 6 — Insert a lab result
+-- ⚠ ATTRIBUTION: Baby's labs may be ordered under mother's name in your CSV.
+--   Insert those results under the BABY's patient_id and document the re-attribution in notes.
+
+INSERT INTO lab_results (
+    patient_id,         -- use BABY's patient_id for newborn tests
+    encounter_id,
+    test_date,          -- YYYY-MM-DD
+    test_name,          -- REQUIRED  full name, no truncation
+    result_value,       -- REAL, no quotes  or NULL if result_text is used
+    result_text,        -- for non-numeric: 'Positive', 'A Positive', etc.  or NULL
+    unit,               -- or NULL
+    flag,               -- 'H', 'L', or 'N'  or NULL
+    is_corrected,       -- 1 if this corrects a prior result; 0 otherwise
+    notes,              -- document re-attribution or other issues here
+    source_system,
+    source_test_id
+) VALUES (
+    2,                  -- REPLACE: use BABY's patient_id for newborn tests
+    1,                  -- REPLACE: encounter_id or NULL
+    'YYYY-MM-DD',       -- REPLACE
+    'Full Test Name',   -- REPLACE — no truncation
+    NULL,               -- REPLACE or NULL
+    'YOUR_RESULT',      -- REPLACE or NULL
+    NULL,               -- unit or NULL
+    NULL,               -- 'H','L','N' or NULL
+    0,                  -- REPLACE: 1 if corrected
+    'Lab order placed under mother IPP-XXXX with note "for newborn". Result re-attributed to baby.',
+    '{group}',
+    'YOUR_TEST_ID'      -- or NULL
+);"""
+
+        t["medications  (Step 6 of 6)"] = f"""\
+-- STEP 6 of 6 — Insert a medication
+-- Compare doses against Group 4 data after submission — document any discrepancy in notes.
+
+INSERT INTO medications (
+    patient_id,
+    encounter_id,
+    medication_name,    -- REQUIRED
+    dose,
+    route,              -- e.g. 'oral', 'IV', 'IM'
+    frequency,
+    start_date,         -- YYYY-MM-DD  or NULL
+    end_date,           -- YYYY-MM-DD  or NULL
+    prescriber,
+    notes,              -- document any dose discrepancy with other groups' data here
+    source_system
+) VALUES (
+    1,                  -- REPLACE with patient_id
+    1,                  -- REPLACE with encounter_id
+    'YOUR_MEDICATION',  -- REPLACE
+    'YOUR_DOSE',        -- REPLACE
+    'oral',             -- REPLACE if different
+    'YOUR_FREQUENCY',   -- REPLACE
+    'YYYY-MM-DD',       -- REPLACE or NULL
+    NULL,               -- end date or NULL
+    'YOUR_PRESCRIBER',  -- or NULL
+    NULL,               -- note discrepancies with Group 4 after querying
+    '{group}'
+);"""
+
+    elif group == "Group 7 - PMI Postnatal":
+        t["patients — MOTHER  (Step 1 of 4)"] = f"""\
+-- STEP 1 of 4 — Check for an existing record, then insert the mother if needed
+-- First run this in the Query tab to check:
+--   SELECT patient_id, last_name, first_name, source_system
+--   FROM patients WHERE last_name='DUPONT' AND date_of_birth='1993-03-15';
+-- If found → use that patient_id and SKIP this insert.
+-- If NOT found → run this insert.
+
+INSERT INTO patients (
+    last_name,
+    first_name,
+    date_of_birth,      -- YYYY-MM-DD
+    sex,
+    source_system,
+    source_patient_id   -- PMI uses mother name + DOB as identifier
+) VALUES (
+    'DUPONT',
+    'Marie',
+    '1993-03-15',
+    'F',
+    '{group}',
+    'PMI-DUPONT-MARIE-1993'
+);
+
+-- Write down the patient_id (or copy from query results if she already existed)."""
+
+        t["patients — BABY  (Step 2 of 4)"] = f"""\
+-- STEP 2 of 4 — Insert baby Louise as a separate patient
+-- ⚠ Your CSV has mother and baby data mixed in the same rows.
+--   The baby's DOB is 2026-01-28; the mother's is 1993-03-15.
+-- GDPR: Do NOT include socioeconomic fields (housing, employment, income).
+--   Document their omission in your Interoperability Challenge Log.
+
+INSERT INTO patients (
+    last_name,
+    first_name,
+    date_of_birth,      -- baby's birth date: '2026-01-28'
+    sex,
+    related_patient_id, -- mother's patient_id from Step 1
+    relationship_type,  -- 'child'
+    source_system,
+    source_patient_id
+) VALUES (
+    'DUPONT',
+    'Louise',               -- official name (CSV may show 'BG DUPONT' — use Louise)
+    '2026-01-28',
+    'F',
+    1,                      -- REPLACE with mother's patient_id from Step 1
+    'child',
+    '{group}',
+    'PMI-DUPONT-MARIE-1993-BABY-F'
+);"""
+
+        t["encounters  (Step 3 of 4)"] = f"""\
+-- STEP 3 of 4 — Insert the postnatal home visit encounter
+-- DATE: Some rows use DD/MM/YYYY, others YYYY-MM-DD — convert all to YYYY-MM-DD.
+-- After Execute, write down the encounter_id for Step 4.
+
+INSERT INTO encounters (
+    patient_id,         -- use MOTHER's patient_id
+    encounter_type,     -- 'home_visit'
+    facility_name,
+    provider_name,
+    encounter_date,     -- YYYY-MM-DD
+    chief_complaint,
+    notes,              -- document vaccination ATC codes here (no structured field for ATC)
+    source_system
+) VALUES (
+    1,                              -- REPLACE with mother's patient_id
+    'home_visit',
+    'PMI - Conseil Départemental',
+    'YOUR_NURSE_NAME',              -- REPLACE
+    'YYYY-MM-DD',                   -- REPLACE
+    'Postnatal follow-up',
+    'Vaccinations (ATC codes): YOUR_ATC_CODES. Note: ATC system — no CCAM mapping available.',
+    '{group}'
+);"""
+
+        t["vitals  (Step 4 of 4 — mother and baby separately)"] = f"""\
+-- STEP 4 of 4 — Insert vitals
+-- ⚠ Run this INSERT TWICE: once for the mother, once for the baby.
+--   Use the correct patient_id for each.
+-- BABY WEIGHT: your CSV records weight in grams → convert to kg  (3100g → 3.1)
+-- GDPR: Do not put socioeconomic data in the notes field.
+
+INSERT INTO vitals (
+    patient_id,         -- REPLACE with mother's OR baby's patient_id
+    encounter_id,       -- encounter_id from Step 3
+    measurement_date,   -- YYYY-MM-DD
+    weight_kg,          -- REAL kg  (baby: grams ÷ 1000;  mother: already in kg)
+    notes,              -- specify whether this is for mother or baby; include original CSV value
+    source_system
+) VALUES (
+    1,              -- REPLACE: mother's patient_id OR baby's patient_id
+    1,              -- REPLACE: encounter_id
+    'YYYY-MM-DD',   -- REPLACE
+    3.1,            -- REPLACE  (baby: e.g. 3100g ÷ 1000 = 3.1 kg)
+    'Weight for: BABY or MOTHER. Original CSV value: 3100g (baby) or 65.0kg (mother).',
+    '{group}'
+);"""
+
+    elif group == "Group 8 - Insurance Payer":
+        t["patients  (Step 1 of 2)"] = f"""\
+-- STEP 1 of 2 — Check for an existing record, then insert if needed
+-- First run this in the Query tab:
+--   SELECT patient_id, last_name, first_name, source_system
+--   FROM patients WHERE last_name='DUPONT' AND date_of_birth='1993-03-15';
+-- If found → use that patient_id and SKIP this insert.
+-- Payer uses a beneficiary number → put it in insurance_number.
+
+INSERT INTO patients (
+    last_name,
+    first_name,
+    date_of_birth,      -- YYYY-MM-DD
+    sex,
+    insurance_number,   -- CPAM beneficiary number from your CSV
+    source_system,
+    source_patient_id
+) VALUES (
+    'DUPONT',
+    'Marie',
+    '1993-03-15',
+    'F',
+    'YOUR_BENEFICIARY_NUMBER',  -- REPLACE
+    '{group}',
+    'YOUR_CPAM_ID'              -- or NULL
+);
+
+-- Write down the patient_id."""
+
+        t["claims  (Step 2 of 2 — one per claim row)"] = f"""\
+-- STEP 2 of 2 — Insert one claim (repeat for each row in your CSV)
+-- AMOUNTS:  comma decimal → dot decimal  ('124,50' → 124.50)
+-- RATE:     percentage text → decimal    ('100%' → 1.0,  '70%' → 0.7)
+-- DATES:    service_date = when care was given; processing_date = when claim was received
+-- DUPLICATES: set claim_status='Duplicate' for any duplicate; document in notes
+
+INSERT INTO claims (
+    patient_id,          -- REQUIRED  number from Step 1
+    service_date,        -- REQUIRED  YYYY-MM-DD  date care was given
+    processing_date,     -- YYYY-MM-DD  date claim was received  or NULL
+    beneficiary_number,
+    service_code,        -- CCAM or procedure code  or NULL
+    service_description,
+    diagnosis_code,      -- or NULL
+    total_amount,        -- REAL dot decimal  ('124,50' → 124.50)
+    reimbursement_rate,  -- REAL decimal  ('100%' → 1.0,  '70%' → 0.7)
+    amount_reimbursed,   -- REAL dot decimal
+    patient_copay,       -- REAL  or NULL
+    claim_status,        -- 'Paid', 'Pending', 'Rejected', or 'Duplicate'
+    notes,               -- document CPAM error codes or duplicate detection here
+    source_system,
+    source_claim_id
+) VALUES (
+    1,                          -- REPLACE with your patient_id
+    'YYYY-MM-DD',               -- REPLACE: service date
+    'YYYY-MM-DD',               -- REPLACE: processing date or NULL
+    'YOUR_BENEFICIARY',         -- REPLACE
+    'YOUR_SERVICE_CODE',        -- or NULL
+    'YOUR_SERVICE_DESCRIPTION', -- REPLACE
+    'YOUR_DX_CODE',             -- or NULL
+    124.50,                     -- REPLACE  ('124,50' → 124.50)
+    1.0,                        -- REPLACE  ('100%' → 1.0,  '70%' → 0.7)
+    124.50,                     -- REPLACE: amount reimbursed
+    0.00,                       -- REPLACE: patient copay  or NULL
+    'Paid',                     -- REPLACE: 'Paid','Pending','Rejected', or 'Duplicate'
+    NULL,                       -- REPLACE: document errors or duplicates
+    '{group}',
+    'YOUR_CLAIM_ID'             -- REPLACE
+);"""
+
+    return t
+
+
+# ---------------------------------------------------------------------------
 # Initialize database
 # ---------------------------------------------------------------------------
 init_db()
@@ -643,29 +1462,41 @@ tab_insert, tab_query, tab_dashboard, tab_fhir, tab_export = st.tabs(["Insert Da
 # ---- Tab 1: Insert Data ----
 with tab_insert:
     st.subheader("Write your INSERT statement")
+
+    # ---- Template assistant ----
+    group_templates = get_group_templates(group)
+    with st.expander("Load a group template", expanded=True):
+        st.markdown(
+            "Select the table you are inserting **next**, then click **Load Template**. "
+            "The editor will fill with a starting point — replace the `REPLACE` / "
+            "`YOUR_*` placeholder values with data from your CSV, then click **Execute**."
+        )
+        tcol1, tcol2 = st.columns([5, 1])
+        with tcol1:
+            selected_tbl = st.selectbox(
+                "Which table are you inserting?",
+                list(group_templates.keys()),
+                key="template_table_select",
+                label_visibility="collapsed",
+            )
+        with tcol2:
+            load_clicked = st.button("Load Template", key="load_tpl_btn", use_container_width=True)
+        if load_clicked:
+            st.session_state.insert_sql = group_templates[selected_tbl]
+            st.rerun()
+
     st.markdown(
-        "Write a SQL `INSERT INTO` statement to load your data into the HIE database. "
-        "You do **not** need to prefix table names — just use `patients`, `encounters`, etc."
+        "Edit the statement below, then click **Execute**. "
+        "Required columns are marked `REQUIRED`; optional ones can be left as `NULL`."
     )
 
-    # Provide a starter template
-    starter = f"""INSERT INTO patients (
-    last_name,
-    first_name,
-    date_of_birth,
-    source_system
-) VALUES (
-    'DUPONT',
-    'Marie',
-    '1993-03-15',
-    '{group}'
-);"""
+    # Initialise key so the widget always has a value in session state
+    if "insert_sql" not in st.session_state:
+        st.session_state.insert_sql = ""
 
     sql_insert = st.text_area(
         "SQL INSERT statement:",
-        value="" if st.session_state.get("sql_cleared") else "",
-        height=250,
-        placeholder=starter,
+        height=280,
         key="insert_sql",
     )
 
@@ -673,8 +1504,9 @@ with tab_insert:
     with col1:
         run_insert = st.button("Execute", type="primary", key="run_insert")
     with col2:
-        if st.button("Show example", key="show_example"):
-            st.code(starter, language="sql")
+        if st.button("Clear editor", key="clear_editor"):
+            st.session_state.insert_sql = ""
+            st.rerun()
 
     if run_insert and sql_insert.strip():
         success, message, df = execute_write(sql_insert)
@@ -683,18 +1515,15 @@ with tab_insert:
             if df is not None and not df.empty:
                 st.markdown("**Inserted row:**")
                 st.dataframe(df, hide_index=True, use_container_width=True)
-
             st.info(
                 "**Remember this ID!** Use it as `patient_id` or `encounter_id` in your next INSERT statements."
             )
         else:
             st.error(message)
-
-            # Provide helpful hints for common errors
             msg_lower = message.lower()
             if "not null" in msg_lower:
                 st.warning(
-                    "A required field is missing. Check the schema in the sidebar to see which columns are required (Required = 1)."
+                    "A required field is missing. Check the schema in the sidebar to see which columns are marked Required = 1."
                 )
             elif "foreign key" in msg_lower:
                 st.warning(
@@ -706,7 +1535,7 @@ with tab_insert:
                     "Check for: trailing commas before `)`, mismatched parentheses, or missing quotes around text values."
                 )
     elif run_insert:
-        st.warning("Paste or type your SQL statement above before clicking Execute.")
+        st.warning("Load or type a SQL statement above before clicking Execute.")
 
 # ---- Tab 2: Query Data ----
 with tab_query:
